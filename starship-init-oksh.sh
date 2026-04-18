@@ -68,6 +68,17 @@
 
 export STARSHIP_SHELL="bash"
 
+# Resolve the starship binary once, at source time, via the user's PATH.
+# `command -v` is POSIX and works identically across linux, macOS, BSDs,
+# Nix, Homebrew, and hand-built installs — no hard-coded paths. If the
+# binary is missing, fall through to a no-op PS1 so the shell is still
+# usable and the user gets a clear diagnostic.
+STARSHIP_BIN=$(command -v starship 2>/dev/null)
+if [ -z "$STARSHIP_BIN" ]; then
+    print -u2 "starship-init-oksh: 'starship' not found in PATH; prompt not initialised."
+    return 0 2>/dev/null || exit 0
+fi
+
 # 16-digit session key. $RANDOM in pdksh returns 0-32767, so we concatenate
 # five rolls, pad with zeros for the edge case of small values, and then
 # trim to 16 characters. Mirrors the bash init's intent without relying on
@@ -88,7 +99,7 @@ function _starship_fix_markers {
 function _starship_prompt {
     typeset _s=$? _j
     _j=$(jobs -p | wc -l | tr -d ' ')
-    /etc/profiles/per-user/k/bin/starship prompt \
+    "$STARSHIP_BIN" prompt \
         --terminal-width="${COLUMNS:-80}" \
         --status="$_s" \
         --jobs="$_j" \
@@ -99,4 +110,4 @@ function _starship_prompt {
 # Single quotes here are load-bearing: PS1 must be re-expanded on every
 # prompt draw, not frozen at source time. Double quotes would freeze it.
 PS1='$(_starship_prompt)'
-PS2=$(/etc/profiles/per-user/k/bin/starship prompt --continuation | _starship_fix_markers)
+PS2=$("$STARSHIP_BIN" prompt --continuation | _starship_fix_markers)

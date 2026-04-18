@@ -32,9 +32,11 @@ git clone https://github.com/<you>/starship-oksh ~/src/starship-oksh
 echo '. $HOME/src/starship-oksh/starship-init-oksh.sh' >> ~/.kshrc
 ```
 
-Adjust the absolute path to the `starship` binary inside the script if
-yours is not at `/etc/profiles/per-user/k/bin/starship` (the Nix profile
-default on this machine). `command -v starship` will tell you.
+The script resolves the `starship` binary from your `PATH` via
+`command -v` at source time, so it works on Linux, macOS (Homebrew or
+MacPorts), the BSDs, Nix, and hand-built installs without edits. If
+`starship` is not on `PATH` when `~/.kshrc` runs, the script prints a
+diagnostic to stderr and leaves the prompt untouched.
 
 ## What was changed, and why
 
@@ -80,5 +82,3 @@ of `starship-init-oksh.sh`; the summary:
 - No `$cmd_duration` module (see #2 above).
 - No right-prompt (`bleopt prompt_rps1`) — that path in the bash init
   is specific to ble.sh.
-- The absolute path to `starship` is hard-coded; adjust for your system
-  or replace with `$(command -v starship)` at source time if you prefer.

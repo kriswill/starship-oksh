@@ -55,6 +55,28 @@
 #      readline(3) PS1 conventions used by bash:
 #      https://www.gnu.org/software/bash/manual/html_node/Controlling-the-Prompt.html
 #
+#   8. `\$` stripped to `$`.
+#      Bash re-expands $ in PS1, so starship emits `\$` to protect a
+#      literal dollar (e.g. the git_status stashed symbol, which
+#      renders as e.g. `[$!+]`). ksh does not re-expand the output of
+#      $(...) substitution in PS1 — parameter expansion happens once,
+#      before the command-sub result is inserted — so a bare `$` in
+#      the captured output stays literal. The bash-style `\` is then
+#      just visible backslash noise. Strip it in the same awk pass.
+#
+#   9. `!` doubled to `!!`.
+#      Per ksh(1), PS1 expansion runs in this order: parameter sub,
+#      command sub, tilde, then history-designator substitution (`!`
+#      → history number, `!!` → literal `!`). Because history sub
+#      runs LAST — on the fully-assembled PS1, including the captured
+#      output of $(_starship_prompt) — any bare `!` starship emits
+#      (e.g. the git_status "modified" symbol, rendering as `[$!+]`)
+#      gets replaced with the current command number, producing
+#      garbage like `[$41+]`. Bash does not do this substitution, so
+#      upstream starship has no reason to pre-escape. We escape
+#      in-flight by doubling every `!` to `!!`, which ksh's history
+#      pass collapses back to a single literal `!`.
+#
 # References:
 #   * Starship shell init sources (upstream bash template):
 #     https://github.com/starship/starship/blob/master/src/init/starship.bash
@@ -89,9 +111,20 @@ STARSHIP_SESSION_KEY=$(printf %s "$STARSHIP_SESSION_KEY" | cut -c1-16)
 export STARSHIP_SESSION_KEY
 
 # Translate bash-style prompt non-printing markers (\[ \]) into the
-# byte markers (0x01 0x02) that pdksh's line editor understands.
+# byte markers (0x01 0x02) that pdksh's line editor understands, strip
+# the `\` from `\$` (bash's literal-dollar escape; ksh does not re-expand
+# $ in a $(...) result, so the backslash is just visible noise), and
+# double every `!` to `!!` so ksh's history-designator pass — which runs
+# AFTER command substitution on the final PS1 — collapses it back to a
+# literal `!` instead of replacing it with the command number.
 function _starship_fix_markers {
-    awk '{ gsub(/\\\[/, "\001"); gsub(/\\\]/, "\002"); print }'
+    awk '{
+        gsub(/\\\[/, "\001")
+        gsub(/\\\]/, "\002")
+        gsub(/\\\$/, "$")
+        gsub(/!/,    "!!")
+        print
+    }'
 }
 
 # Build one prompt. Called by PS1 via command substitution, so $? inside
